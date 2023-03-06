@@ -5,6 +5,7 @@ function withdraw(creep, resourceType) {
     filter: (structure) => {
       return (structure.structureType == STRUCTURE_CONTAINER ||
               structure.structureType == STRUCTURE_STORAGE ||
+              structure.structureType == STRUCTURE_SPAWN ||
               structure.structureType == STRUCTURE_TERMINAL) &&
               structure.store.getUsedCapacity(resourceType) > 0;
     }
