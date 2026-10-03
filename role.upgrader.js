@@ -1,69 +1,51 @@
-// Функция для доставки ресурсов из хранилищ
-function withdraw(creep, resourceType) {
-  // Ищем все доступные хранилища ресурсов
-  let targets = creep.room.find(FIND_STRUCTURES, {
-    filter: (structure) => {
-      return (structure.structureType == STRUCTURE_CONTAINER ||
-              structure.structureType == STRUCTURE_STORAGE ||
-              structure.structureType == STRUCTURE_SPAWN ||
-              structure.structureType == STRUCTURE_TERMINAL) &&
-              structure.store.getUsedCapacity(resourceType) > 0;
-    }
-  });
+'use strict';
 
-  if (targets.length > 0) {
-    // Если хранилища найдены, достаем ресурсы из первого из списка
-    if (creep.withdraw(targets[0], resourceType) == ERR_NOT_IN_RANGE) {
-      creep.moveTo(targets[0], {visualizePathStyle: {stroke: '#ffffff'}});
-      creep.say('🚚');
-    }
-  }
-}
-// Функция улучшения контроллера
-function upgrade(creep, controller) {
-  // Если крип не рядом с контроллером, перемещаем его к нему
-  if (creep.pos.inRangeTo(controller, 3) == false) {
-    creep.moveTo(controller);
-    creep.say('🚶 Moving to controller');
-    // Выводим путь к контроллеру на экран
-    const path = creep.pos.findPathTo(controller);
-    const visual = new RoomVisual(creep.room.name);
-    visual.poly(path, {lineStyle: 'dashed', strokeWidth: 0.1, opacity: 0.5});
-  } else {
-    // Если крип рядом с контроллером, улучшаем его
-    creep.upgradeController(controller);
-    creep.say('⚡ Upgrading');
-  }
-}
+/**
+ * Апгрейдер: улучшает контроллер. Энергию берёт в первую очередь из линка и
+ * контейнера у контроллера, затем из storage и других контейнеров; в ранней
+ * игре (нет контейнеров) добывает сам.
+ */
+const actions = require('creep.actions');
+const movement = require('movement');
+const cache = require('cache');
+const rooms = require('rooms');
+const config = require('config');
 
-// Функция поиска контроллера
-function findController(creep) {
-  // Ищем контроллер в комнате
-  let controller = creep.room.controller;
-  if (controller) {
-    return controller;
-  } else {
-    return null;
-  }
-}
-
-// Функция выполнения роли
 function run(creep) {
-  // Получаем контроллер
-  let controller = findController(creep);
-  if (controller) {
-    // Проверяем, есть ли у крипа ресурсы для улучшения контроллера
-    if (creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0) {
-      upgrade(creep, controller);
-    } else {
-      // Если у крипа нет ресурсов, забираем их из хранилища
-      resourceManager.withdraw(creep, RESOURCE_ENERGY);
+  if (movement.avoidHostiles(creep)) return;
+  if (actions.goHome(creep)) return;
+  const room = creep.room;
+  const info = rooms.mem(room.name);
+  const ctrlInfo = info.ctrl || {};
+  const link = rooms.byId(ctrlInfo.l);
+  const container = rooms.byId(ctrlInfo.c);
+
+  if (actions.updateWorking(creep)) {
+    actions.upgrade(creep);
+    // Подзаправка без потери тика: забрать из соседнего линка/контейнера.
+    if (creep.store.getUsedCapacity(RESOURCE_ENERGY) <= creep.getActiveBodyparts(WORK) * 2) {
+      const src = [link, container].filter(function (s) {
+        return s && s.store.getUsedCapacity(RESOURCE_ENERGY) > 0 && creep.pos.isNearTo(s);
+      })[0];
+      if (src) creep.withdraw(src, RESOURCE_ENERGY);
     }
-  } else {
-    console.log('Upgrader ' + creep.name + ' cannot find controller');
+    return;
+  }
+
+  const noContainers = cache.structures(room, STRUCTURE_CONTAINER).length === 0 && !room.storage;
+  const ok = actions.getEnergy(creep, {
+    links: link ? [link.id] : null,
+    storageMin: config.storage.reserveForSpawn,
+    minAmount: 25,
+    harvest: noContainers || room.energyCapacityAvailable < 550,
+  });
+  if (!ok) {
+    // Энергии нет: подождать у контроллера, чтобы не мешать.
+    if (creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0) creep.memory.working = true;
+    else if (room.controller && !creep.pos.inRangeTo(room.controller, 3)) {
+      movement.moveTo(creep, room.controller, { range: 3 });
+    }
   }
 }
 
-module.exports = {
-  run: run
-};
+module.exports = { run: run };

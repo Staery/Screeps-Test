@@ -1,10 +1,9 @@
 'use strict';
 
 /**
- * Строитель: строит площадки по приоритету (спавн → башни → контейнеры → расширения →
- * storage → линки → ... → дороги → рампарты → стены).
- * Свежепостроенный рампарт сразу подтягивает по хитам. Без строек — чинит,
- * затем улучшает контроллер.
+ * Ремонтник: чинит дороги, контейнеры и прочие постройки ниже порога
+ * (config.repair.threshold), не тратя энергию на стены. Когда чинить нечего —
+ * укрепляет стены, строит, улучшает контроллер.
  */
 const actions = require('creep.actions');
 const movement = require('movement');
@@ -14,16 +13,15 @@ function run(creep) {
   if (movement.avoidHostiles(creep)) return;
   if (actions.goHome(creep)) return;
   if (actions.updateWorking(creep)) {
-    if (actions.build(creep)) return;
     if (actions.repair(creep)) return;
+    if (actions.build(creep)) return;
+    if (actions.repairWalls(creep)) return;
     actions.upgrade(creep);
     return;
   }
-  const room = creep.room;
   if (!actions.getEnergy(creep, {
     storageMin: config.storage.minForBuilders,
-    terminal: true,
-    harvest: room.energyCapacityAvailable < 550 || !room.storage,
+    harvest: creep.room.energyCapacityAvailable < 550 || !creep.room.storage,
   })) {
     if (creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0) creep.memory.working = true;
     else actions.park(creep);
