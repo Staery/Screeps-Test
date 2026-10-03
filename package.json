@@ -1,0 +1,30 @@
+{
+  "name": "screeps-colony",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Screeps colony scripts. Dev tooling only: the game itself uses the .js files from the repository root.",
+  "license": "MIT",
+  "scripts": {
+    "test": "jest",
+    "lint": "eslint ."
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "roots": [
+      "<rootDir>/test"
+    ],
+    "setupFiles": [
+      "<rootDir>/test/setup.js"
+    ],
+    "modulePaths": [
+      "<rootDir>"
+    ]
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/jest": "^30.0.0",
+    "@types/screeps": "^3.4.0",
+    "eslint": "^10.12.0",
+    "jest": "^30.5.2"
+  }
+}
